@@ -18,7 +18,45 @@ e [`roadmap-backend-nestjs.md`](./roadmap-backend-nestjs.md).
 - [Bun](https://bun.sh) ≥ 1.3
 - Docker + Docker Compose
 
-## Setup
+## Rodar tudo com Docker
+
+Sobe **banco + API + simulador** de uma vez. Na primeira subida o container
+aplica as migrations, roda o seed dos 248 postes e gera o histórico (backfill)
+automaticamente — isso leva alguns minutos; nas próximas ele detecta o banco já
+populado e vai direto para a API.
+
+```bash
+cp .env.example .env       # opcional: só para ajustar os defaults
+bun run docker:up          # build + up (postgres + app)
+bun run docker:logs        # acompanha o bootstrap e o simulador
+bun run docker:down        # derruba a stack (o volume do banco é preservado)
+```
+
+API em `http://localhost:3000` (Swagger em `/docs`), WebSocket em
+`ws://localhost:3000/tempo-real`.
+
+Variáveis do serviço `app` (todas opcionais, lidas do `.env` na raiz):
+
+| Variável | Default | |
+|---|---|---|
+| `PORT` | `3000` | porta publicada no host |
+| `DB_BOOTSTRAP` | `auto` | `auto` = seed + backfill só com o banco vazio · `force` = sempre · `skip` = só migrations |
+| `DIAS_RAW` / `DIAS_AGREGADO` | `30` / `740` | tamanho do histórico gerado no bootstrap |
+| `SIMULADOR_*` | ver abaixo | mesmos controles do modo local |
+
+O `DATABASE_URL` do `.env` **não** é usado pelo container: dentro da rede do
+compose o host do banco é `postgres`, e o próprio `docker-compose.yml` já
+define a URL correta.
+
+Comandos dentro do container, se precisar:
+
+```bash
+docker compose exec app bun run db:seed
+docker compose exec app bunx prisma migrate deploy
+docker compose down -v      # zera também o volume do banco
+```
+
+## Setup local (API fora do Docker)
 
 ```bash
 # 1. Dependências
@@ -55,7 +93,9 @@ a API sem ele, use `SIMULADOR_ENABLED=false`.
 
 | Script | Ação |
 |---|---|
-| `bun run db:up` / `db:down` | Sobe / derruba o PostgreSQL (Docker) |
+| `bun run docker:up` / `docker:down` | Sobe / derruba a stack inteira (PostgreSQL + API) |
+| `bun run docker:logs` | Logs da API no container |
+| `bun run db:up` / `db:down` | Sobe só o PostgreSQL / derruba a stack |
 | `bun run prisma:migrate` | Cria e aplica migrations em desenvolvimento |
 | `bun run prisma:studio` | Prisma Studio (inspeção visual do banco) |
 | `bun run db:seed` | Popula a rede de postes (idempotente) |
