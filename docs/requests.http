@@ -1,0 +1,55 @@
+# Exemplos de requisição — REST Client (VS Code) / IntelliJ HTTP Client.
+# Rode a API com `bun run start:dev`.
+
+@host = http://localhost:3000
+# Troque por um id real vindo de GET /postes:
+@posteId = COLE_UM_ID_AQUI
+
+### Info + documentação
+GET {{host}}/
+
+### Swagger UI  →  abrir {{host}}/docs no navegador
+GET {{host}}/docs-json
+
+### --- Postes ---
+
+### Lista completa (mapa)
+GET {{host}}/postes
+
+### Filtro por status
+GET {{host}}/postes?status=FALHA_OFFLINE
+
+### Busca por rua/bairro
+GET {{host}}/postes?busca=centro
+
+### Detalhe
+GET {{host}}/postes/{{posteId}}
+
+### Histórico de consumo
+GET {{host}}/postes/{{posteId}}/telemetria?periodo=semana
+
+### Log do sensor 360°
+GET {{host}}/postes/{{posteId}}/eventos?limite=10
+
+### Agendar manutenção
+PATCH {{host}}/postes/{{posteId}}/status
+Content-Type: application/json
+
+{ "status": "MANUTENCAO" }
+
+### Encerrar manutenção
+PATCH {{host}}/postes/{{posteId}}/status
+Content-Type: application/json
+
+{ "status": "NORMAL" }
+
+### --- KPIs ---
+
+### Dashboard (dia | semana | mes | ano)
+GET {{host}}/kpis?periodo=mes
+
+### Ranking de maior consumo
+GET {{host}}/kpis/maior-consumo?periodo=semana&limite=5
+
+### Postes por status
+GET {{host}}/kpis/postes-por-status
