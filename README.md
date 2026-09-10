@@ -37,7 +37,7 @@ bun run prisma:migrate
 # 5. Seed da rede de 248 postes de Itaguari
 bun run db:seed
 
-# 6. (opcional) Histórico dos últimos 30 dias para os endpoints de KPIs/telemetria
+# 6. Histórico: telemetria/eventos (30 d) + agregados diários (~2 anos, para os KPIs)
 bun run db:backfill
 ```
 
@@ -106,11 +106,45 @@ Worker embutido na API (`src/simulador/`), ligado por padrão. A cada ciclo:
 O estado vivo dos postes fica em memória e é sincronizado com o banco a cada tick.
 Intervalos e retenção são configuráveis por env (ver `.env.example`).
 
+## API — Postes (Fase 3)
+
+Base URL: `http://localhost:3000`. Sem prefixo. CORS liberado. Validação estrita
+(query/body desconhecidos → 400; `:id` deve ser UUID → 400; poste inexistente → 404).
+
+| Método | Rota | Descrição |
+|---|---|---|
+| `GET` | `/postes?status=&busca=` | Lista para o mapa. `status` = `NORMAL`/`CONSUMO_ALTO`/`FALHA_OFFLINE`/`MANUTENCAO`; `busca` casa rua ou bairro (sem acento/caixa). Retorna `{ total, postes[] }`. |
+| `GET` | `/postes/:id` | Detalhe do poste + `chamadoAberto` (true quando offline). |
+| `GET` | `/postes/:id/telemetria?periodo=hoje\|semana\|mes` | Histórico agregado: `resumo` (consumo/custo/média/pico/**economia %**) + `serie[]` para o gráfico de barras (por hora em `hoje`, por dia em `semana`/`mes`). Default `hoje`. |
+| `GET` | `/postes/:id/eventos?limite=` | Log do sensor 360°, mais recentes primeiro. `limite` 1–200 (default 50). |
+| `PATCH` | `/postes/:id/status` | Body `{ "status": "MANUTENCAO" \| "NORMAL" }`. Só esses dois — os demais são derivados da telemetria. |
+
+**Economia %** = consumo real frente a operar sempre em 100% pelas mesmas horas
+em que a luz esteve acesa.
+
+O `PATCH` de status emite um evento interno que o simulador escuta, para não
+sobrescrever a mudança manual no tick seguinte.
+
+## API — KPIs / Dashboard (Fase 4)
+
+| Método | Rota | Descrição |
+|---|---|---|
+| `GET` | `/kpis?periodo=dia\|semana\|mes\|ano` | Consumo (kWh) e custo (R$) da rede no período e no período anterior equivalente, `variacao` percentual, `parcialHoje` (dia corrente à parte) e `serie` comparativa (atual × anterior) para o gráfico — por hora (`dia`), dia (`semana`/`mes`) ou mês (`ano`). Default `mes`. |
+| `GET` | `/kpis/maior-consumo?periodo=&limite=` | Ranking dos postes de maior consumo no período, com endereço e kWh/custo. `limite` 1–20 (default 5). |
+| `GET` | `/kpis/postes-por-status` | `{ total, porStatus[] }` — contagem por categoria (barra empilhada do PRD). |
+
+Custo = consumo × tarifa **B4a** (R$ 0,58/kWh), exposta em `tarifa` na resposta de `/kpis`.
+
+As janelas de período são blocos de N dias inteiros (UTC) terminando à meia-noite
+de hoje — período cheio vs. período cheio. O consumo consolidado vem de
+`AgregadoConsumo` (rollup diário: cron às 00:15 + `db:backfill`); o dia corrente
+é calculado ao vivo da telemetria.
+
 ## Roadmap
 
 - [x] **Fase 1** — Setup e modelagem de dados
 - [x] **Fase 2** — Simulador de telemetria IoT
-- [ ] **Fase 3** — API REST · Postes
-- [ ] **Fase 4** — API REST · KPIs
+- [x] **Fase 3** — API REST · Postes
+- [x] **Fase 4** — API REST · KPIs
 - [ ] **Fase 5** — Tempo real (WebSocket)
 - [ ] **Fase 6** — Documentação e fechamento da trilha

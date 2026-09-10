@@ -1,9 +1,12 @@
 import { Module } from '@nestjs/common';
+import { EventosService } from './eventos.service';
 
 /**
  * Domínio: Eventos do sensor 360°.
- * Geração de eventos entra na Fase 2 e o log
- * (GET /postes/:id/eventos) na Fase 3 do roadmap.
+ * Expõe o log consumido por GET /postes/:id/eventos (roteado no PostesController).
  */
-@Module({})
+@Module({
+  providers: [EventosService],
+  exports: [EventosService],
+})
 export class EventosModule {}

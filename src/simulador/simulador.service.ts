@@ -5,13 +5,17 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { OnEvent } from '@nestjs/event-emitter';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import { StatusPoste } from '@prisma/client';
 import {
   FATOR_CONSUMO_ALTO_MAX,
   FATOR_CONSUMO_ALTO_MIN,
   LUMINOSIDADE_PICO_PCT,
+  LUMINOSIDADE_PISO_PCT,
 } from '../common/constants';
+import { EVENTO_POSTE_STATUS_ALTERADO } from '../postes/postes.events';
+import type { PosteStatusAlteradoEvent } from '../postes/postes.events';
 import { PrismaService } from '../prisma/prisma.service';
 import { lerSimuladorConfig, SimuladorConfig } from './simulador.config';
 import {
@@ -82,6 +86,29 @@ export class SimuladorService implements OnModuleInit, OnModuleDestroy {
       if (this.scheduler.doesExist('interval', nome)) {
         this.scheduler.deleteInterval(nome);
       }
+    }
+  }
+
+  /**
+   * Mantém o estado em memória em sincronia quando o status de um poste é
+   * alterado manualmente pela API (PATCH /postes/:id/status), evitando que o
+   * próximo flush do simulador sobrescreva a mudança.
+   */
+  @OnEvent(EVENTO_POSTE_STATUS_ALTERADO)
+  aoAlterarStatusManual({ posteId, status }: PosteStatusAlteradoEvent): void {
+    const estado = this.estado.get(posteId);
+    if (!estado) return;
+
+    estado.status = status;
+    if (status === StatusPoste.MANUTENCAO) {
+      estado.luminosidadePct = 0;
+      estado.consumoKw = 0;
+      estado.veiculoPresente = false;
+      estado.sentidoVeiculo = null;
+      estado.picoAteMs = null;
+    } else if (status === StatusPoste.NORMAL) {
+      estado.luminosidadePct = LUMINOSIDADE_PISO_PCT;
+      estado.fatorConsumoAlto = 1;
     }
   }
 
