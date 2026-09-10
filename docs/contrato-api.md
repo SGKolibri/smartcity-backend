@@ -195,8 +195,8 @@ difundida pelo WebSocket.
 }
 ```
 
-Para `periodo=ano`, `serie.granularidade` é `"mes"` e há ~13 buckets (12 meses
-cheios + mês corrente).
+Para `periodo=ano`, `serie.granularidade` é `"mes"` e há 13 buckets em cada
+série (a janela de 365 dias toca 13 meses de calendário).
 
 ### `GET /kpis/maior-consumo?periodo=&limite=`
 
