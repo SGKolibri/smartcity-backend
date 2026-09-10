@@ -5,7 +5,7 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { OnEvent } from '@nestjs/event-emitter';
+import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import { StatusPoste } from '@prisma/client';
 import {
@@ -17,6 +17,11 @@ import {
 import { EVENTO_POSTE_STATUS_ALTERADO } from '../postes/postes.events';
 import type { PosteStatusAlteradoEvent } from '../postes/postes.events';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  EVENTO_SIM_POSTES_ATUALIZADOS,
+  PostesAtualizadosEvent,
+  SnapshotPoste,
+} from './simulador.events';
 import { lerSimuladorConfig, SimuladorConfig } from './simulador.config';
 import {
   EstadoPoste,
@@ -48,6 +53,7 @@ export class SimuladorService implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly prisma: PrismaService,
     private readonly scheduler: SchedulerRegistry,
+    private readonly eventEmitter: EventEmitter2,
     configService: ConfigService,
   ) {
     this.config = lerSimuladorConfig(configService);
@@ -182,11 +188,11 @@ export class SimuladorService implements OnModuleInit, OnModuleDestroy {
 
     if (!eventos.length) return;
     await this.prisma.eventoSensor.createMany({ data: eventos });
-    await this.flushPostes(
-      eventos
-        .map((e) => this.estado.get(e.posteId))
-        .filter(Boolean) as EstadoPoste[],
-    );
+    const afetados = eventos
+      .map((e) => this.estado.get(e.posteId))
+      .filter(Boolean) as EstadoPoste[];
+    await this.flushPostes(afetados);
+    this.emitirAtualizacao('sensores', afetados);
   }
 
   private async tickTelemetria(): Promise<void> {
@@ -202,17 +208,18 @@ export class SimuladorService implements OnModuleInit, OnModuleDestroy {
     await this.prisma.leituraTelemetria.createMany({ data: leituras });
     // Postes offline não geram leitura: seus campos ficam congelados no banco
     // desde a transição, e `ultimaLeituraEm` envelhece sozinho.
-    await this.flushPostes(
-      leituras
-        .map((l) => this.estado.get(l.posteId))
-        .filter(Boolean) as EstadoPoste[],
-    );
+    const afetados = leituras
+      .map((l) => this.estado.get(l.posteId))
+      .filter(Boolean) as EstadoPoste[];
+    await this.flushPostes(afetados);
+    this.emitirAtualizacao('telemetria', afetados);
   }
 
   private async tickStatus(): Promise<void> {
     const mudados = passoStatus([...this.estado.values()], new Date());
     if (!mudados.length) return;
     await this.flushPostes(mudados);
+    this.emitirAtualizacao('status', mudados);
     this.logger.log(
       `Transição de status — ${mudados
         .map((e) => `${e.codigo}: ${e.status}`)
@@ -237,6 +244,30 @@ export class SimuladorService implements OnModuleInit, OnModuleDestroy {
         `Limpeza (> ${this.config.retencaoDias}d): ${leituras.count} leituras, ${eventos.count} eventos removidos.`,
       );
     }
+  }
+
+  private snapshot(e: EstadoPoste): SnapshotPoste {
+    return {
+      posteId: e.id,
+      codigo: e.codigo,
+      status: e.status,
+      luminosidadeAtual: e.luminosidadePct,
+      consumoInstantaneoKw: e.consumoKw,
+      ultimaLeituraEm: e.ultimaLeituraEm,
+    };
+  }
+
+  /** Publica os postes alterados no barramento para o gateway de tempo real. */
+  private emitirAtualizacao(
+    origem: PostesAtualizadosEvent['origem'],
+    estados: EstadoPoste[],
+  ): void {
+    if (!estados.length) return;
+    this.eventEmitter.emit(EVENTO_SIM_POSTES_ATUALIZADOS, {
+      origem,
+      postes: estados.map((e) => this.snapshot(e)),
+      em: new Date(),
+    } satisfies PostesAtualizadosEvent);
   }
 
   /** Sincroniza os campos "atuais" dos postes (memória → banco). */
