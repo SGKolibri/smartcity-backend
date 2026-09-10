@@ -27,3 +27,11 @@ export const ALVO_STATUS = {
   CONSUMO_ALTO: 9,
   FALHA_OFFLINE: 5,
 } as const;
+
+/// Fração média da potência nominal em que um poste opera: piso de 50% na maior
+/// parte do tempo, pico de 100% em ~15% das leituras.
+export const FATOR_OPERACAO_MEDIO = 0.85 * 0.5 + 0.15 * 1.0;
+
+/// Consumo diário de referência de um poste NORMAL, em kWh (operação contínua).
+export const KWH_DIA_POSTE_NORMAL =
+  POTENCIA_NOMINAL_KW * FATOR_OPERACAO_MEDIO * 24;
