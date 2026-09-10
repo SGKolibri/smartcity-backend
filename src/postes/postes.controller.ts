@@ -7,6 +7,12 @@ import {
   Patch,
   Query,
 } from '@nestjs/common';
+import {
+  ApiOkResponse,
+  ApiOperation,
+  ApiParam,
+  ApiTags,
+} from '@nestjs/swagger';
 import { EventosService } from '../eventos/eventos.service';
 import { TelemetriaService } from '../telemetria/telemetria.service';
 import { AtualizarStatusDto } from './dto/atualizar-status.dto';
@@ -15,6 +21,7 @@ import { ListarEventosQuery } from './dto/listar-eventos.query';
 import { ListarPostesQuery } from './dto/listar-postes.query';
 import { PostesService } from './postes.service';
 
+@ApiTags('Postes')
 @Controller('postes')
 export class PostesController {
   constructor(
@@ -23,20 +30,38 @@ export class PostesController {
     private readonly eventos: EventosService,
   ) {}
 
-  /** GET /postes — lista para o mapa, com filtro por status e busca. */
   @Get()
+  @ApiOperation({
+    summary: 'Lista os postes para o mapa',
+    description:
+      'Filtro por status e busca por rua/bairro. Retorna todos os postes que casam.',
+  })
+  @ApiOkResponse({
+    description: '`{ total, postes[] }` com os campos do marcador.',
+  })
   listar(@Query() query: ListarPostesQuery) {
     return this.postes.listar(query);
   }
 
-  /** GET /postes/:id — detalhe do poste. */
   @Get(':id')
+  @ApiOperation({ summary: 'Detalhe de um poste' })
+  @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiOkResponse({
+    description:
+      'Poste completo + `chamadoAberto` (true quando `FALHA_OFFLINE`).',
+  })
   detalhe(@Param('id', ParseUUIDPipe) id: string) {
     return this.postes.buscarPorId(id);
   }
 
-  /** GET /postes/:id/telemetria?periodo=hoje|semana|mes — histórico de consumo. */
   @Get(':id/telemetria')
+  @ApiOperation({
+    summary: 'Histórico de consumo do poste',
+    description:
+      'Série agregada para o gráfico de barras + resumo (média, pico, economia %). ' +
+      'Bucket por hora em `hoje`, por dia em `semana`/`mes`.',
+  })
+  @ApiParam({ name: 'id', format: 'uuid' })
   async historicoTelemetria(
     @Param('id', ParseUUIDPipe) id: string,
     @Query() query: HistoricoTelemetriaQuery,
@@ -45,8 +70,9 @@ export class PostesController {
     return this.telemetria.historicoPorPoste(id, query.periodo);
   }
 
-  /** GET /postes/:id/eventos — log do sensor 360°. */
   @Get(':id/eventos')
+  @ApiOperation({ summary: 'Log do sensor 360° do poste' })
+  @ApiParam({ name: 'id', format: 'uuid' })
   async logEventos(
     @Param('id', ParseUUIDPipe) id: string,
     @Query() query: ListarEventosQuery,
@@ -55,8 +81,12 @@ export class PostesController {
     return this.eventos.listarPorPoste(id, query.limite);
   }
 
-  /** PATCH /postes/:id/status — atribuição manual de manutenção. */
   @Patch(':id/status')
+  @ApiOperation({
+    summary: 'Atribui status manualmente (agendar/encerrar manutenção)',
+  })
+  @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiOkResponse({ description: 'Poste atualizado.' })
   atualizarStatus(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: AtualizarStatusDto,
