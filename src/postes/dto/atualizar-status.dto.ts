@@ -1,4 +1,5 @@
 import { StatusPoste } from '@prisma/client';
+import { ApiProperty } from '@nestjs/swagger';
 import { IsIn } from 'class-validator';
 
 /// Status atribuíveis manualmente pelo técnico (PRD 5.2 · "Agendar manutenção").
@@ -10,6 +11,11 @@ export const STATUS_MANUAIS = [
 export type StatusManual = (typeof STATUS_MANUAIS)[number];
 
 export class AtualizarStatusDto {
+  @ApiProperty({
+    enum: STATUS_MANUAIS,
+    description:
+      'Novo status. Só `MANUTENCAO` ou `NORMAL` — os demais são derivados da telemetria.',
+  })
   @IsIn(STATUS_MANUAIS)
   status!: StatusManual;
 }

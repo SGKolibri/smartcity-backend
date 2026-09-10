@@ -85,9 +85,30 @@ bun run db:backfill
 bun run start:dev      # http://localhost:3000 (watch mode)
 ```
 
-Ao subir, o **simulador de telemetria** (Fase 2) começa a rodar automaticamente e
-passa a gravar leituras, eventos e transições de status continuamente. Para subir
-a API sem ele, use `SIMULADOR_ENABLED=false`.
+- **API REST:** `http://localhost:3000` — documentação interativa em `/docs`
+  (Swagger), OpenAPI JSON em `/docs-json`.
+- **WebSocket:** `ws://localhost:3000/tempo-real` (Socket.IO).
+- **Contrato completo com exemplos de payload:** [`docs/contrato-api.md`](./docs/contrato-api.md).
+  Requisições prontas em [`docs/requests.http`](./docs/requests.http).
+
+### Simulador de telemetria
+
+Sobe **junto com a API** e passa a gravar leituras, eventos e transições de
+status continuamente (ver seção abaixo). Controle por variáveis de ambiente
+(defaults em `.env.example`):
+
+| Variável | Default | |
+|---|---|---|
+| `SIMULADOR_ENABLED` | `true` | `false` sobe a API sem o worker |
+| `SIMULADOR_INTERVALO_SENSORES_MS` | `5000` | tick de detecção de veículo |
+| `SIMULADOR_INTERVALO_TELEMETRIA_MS` | `10000` | tick de leitura de consumo |
+| `SIMULADOR_INTERVALO_STATUS_MS` | `30000` | tick de transição de status |
+| `SIMULADOR_RETENCAO_DIAS` | `40` | corte da limpeza de leituras/eventos |
+
+```bash
+# ex.: demo com telemetria mais rápida
+SIMULADOR_INTERVALO_TELEMETRIA_MS=3000 bun run start:dev
+```
 
 ## Scripts úteis
 
@@ -98,11 +119,10 @@ a API sem ele, use `SIMULADOR_ENABLED=false`.
 | `bun run db:up` / `db:down` | Sobe só o PostgreSQL / derruba a stack |
 | `bun run prisma:migrate` | Cria e aplica migrations em desenvolvimento |
 | `bun run prisma:studio` | Prisma Studio (inspeção visual do banco) |
-| `bun run db:seed` | Popula a rede de postes (idempotente) |
-| `bun run db:backfill` | Gera histórico de telemetria/eventos (`DIAS`, `RESOLUCAO_MIN` configuráveis) |
+| `bun run db:seed` | Popula a rede de 248 postes (idempotente) |
+| `bun run db:backfill` | Histórico: telemetria/eventos (`DIAS_RAW`) + agregados diários (`DIAS_AGREGADO`) |
 | `bun run db:reset` | Recria o banco do zero e roda o seed |
-| `bun run build` | Compila para `dist/` |
-| `bun run lint` | oxlint |
+| `bun run build` / `bun run lint` | Compila para `dist/` · oxlint |
 
 ## Modelo de dados
 
@@ -206,6 +226,13 @@ estado inicial e as mudanças manuais de status.
 Os snapshots de delta trazem `posteId`, `codigo`, `status`, `luminosidadeAtual`,
 `consumoInstantaneoKw` e `ultimaLeituraEm`.
 
+## Documentação (Fase 6)
+
+- **Swagger UI:** `GET /docs` · **OpenAPI JSON:** `GET /docs-json`
+- **Contrato para o time mobile:** [`docs/contrato-api.md`](./docs/contrato-api.md)
+  — todos os endpoints REST e eventos WebSocket com exemplos de payload reais.
+- **Requisições de teste:** [`docs/requests.http`](./docs/requests.http)
+
 ## Roadmap
 
 - [x] **Fase 1** — Setup e modelagem de dados
@@ -213,4 +240,8 @@ Os snapshots de delta trazem `posteId`, `codigo`, `status`, `luminosidadeAtual`,
 - [x] **Fase 3** — API REST · Postes
 - [x] **Fase 4** — API REST · KPIs
 - [x] **Fase 5** — Tempo real (WebSocket)
-- [ ] **Fase 6** — Documentação e fechamento da trilha
+- [x] **Fase 6** — Documentação e fechamento da trilha
+
+Trilha de backend **completa**: todos os endpoints respondem com dados mockados
+coerentes com o PRD, o simulador roda de forma contínua e a documentação serve de
+contrato para o desenvolvimento do app Flutter.

@@ -22,10 +22,11 @@ export function janelaTelemetria(
     return { inicio, fim: agora, granularidade: 'hour', horasPorBucket: 1 };
   }
 
+  // Alinha à meia-noite UTC para casar exatamente com os buckets `date_trunc`.
   const dias = periodo === 'semana' ? 7 : 30;
   const inicio = new Date(agora);
-  inicio.setDate(inicio.getDate() - dias);
-  inicio.setHours(0, 0, 0, 0);
+  inicio.setUTCDate(inicio.getUTCDate() - dias);
+  inicio.setUTCHours(0, 0, 0, 0);
   return { inicio, fim: agora, granularidade: 'day', horasPorBucket: 24 };
 }
 
