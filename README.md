@@ -106,11 +106,30 @@ Worker embutido na API (`src/simulador/`), ligado por padrão. A cada ciclo:
 O estado vivo dos postes fica em memória e é sincronizado com o banco a cada tick.
 Intervalos e retenção são configuráveis por env (ver `.env.example`).
 
+## API — Postes (Fase 3)
+
+Base URL: `http://localhost:3000`. Sem prefixo. CORS liberado. Validação estrita
+(query/body desconhecidos → 400; `:id` deve ser UUID → 400; poste inexistente → 404).
+
+| Método | Rota | Descrição |
+|---|---|---|
+| `GET` | `/postes?status=&busca=` | Lista para o mapa. `status` = `NORMAL`/`CONSUMO_ALTO`/`FALHA_OFFLINE`/`MANUTENCAO`; `busca` casa rua ou bairro (sem acento/caixa). Retorna `{ total, postes[] }`. |
+| `GET` | `/postes/:id` | Detalhe do poste + `chamadoAberto` (true quando offline). |
+| `GET` | `/postes/:id/telemetria?periodo=hoje\|semana\|mes` | Histórico agregado: `resumo` (consumo/custo/média/pico/**economia %**) + `serie[]` para o gráfico de barras (por hora em `hoje`, por dia em `semana`/`mes`). Default `hoje`. |
+| `GET` | `/postes/:id/eventos?limite=` | Log do sensor 360°, mais recentes primeiro. `limite` 1–200 (default 50). |
+| `PATCH` | `/postes/:id/status` | Body `{ "status": "MANUTENCAO" \| "NORMAL" }`. Só esses dois — os demais são derivados da telemetria. |
+
+**Economia %** = consumo real frente a operar sempre em 100% pelas mesmas horas
+em que a luz esteve acesa.
+
+O `PATCH` de status emite um evento interno que o simulador escuta, para não
+sobrescrever a mudança manual no tick seguinte.
+
 ## Roadmap
 
 - [x] **Fase 1** — Setup e modelagem de dados
 - [x] **Fase 2** — Simulador de telemetria IoT
-- [ ] **Fase 3** — API REST · Postes
+- [x] **Fase 3** — API REST · Postes
 - [ ] **Fase 4** — API REST · KPIs
 - [ ] **Fase 5** — Tempo real (WebSocket)
 - [ ] **Fase 6** — Documentação e fechamento da trilha

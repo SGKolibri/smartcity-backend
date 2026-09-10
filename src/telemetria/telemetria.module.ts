@@ -1,9 +1,13 @@
 import { Module } from '@nestjs/common';
+import { TelemetriaService } from './telemetria.service';
 
 /**
  * Domínio: Telemetria.
- * Simulador IoT entra na Fase 2 e o histórico de consumo
- * (GET /postes/:id/telemetria) na Fase 3 do roadmap.
+ * Expõe o histórico de consumo consumido por GET /postes/:id/telemetria
+ * (roteado no PostesController).
  */
-@Module({})
+@Module({
+  providers: [TelemetriaService],
+  exports: [TelemetriaService],
+})
 export class TelemetriaModule {}
