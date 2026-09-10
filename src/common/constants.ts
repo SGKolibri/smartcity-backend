@@ -11,3 +11,19 @@ export const UF = 'GO';
 
 /// Total de postes da rede simulada (PRD seção 3).
 export const TOTAL_POSTES = 248;
+
+/// Potência nominal de um poste LED a 100% de luminosidade, em kW.
+/// A 50% (piso) o consumo fica em ~metade disso.
+export const POTENCIA_NOMINAL_KW = 0.1;
+
+/// Multiplicador de consumo aplicado a postes em CONSUMO_ALTO
+/// (simula perda de eficiência / driver degradado).
+export const FATOR_CONSUMO_ALTO_MIN = 1.8;
+export const FATOR_CONSUMO_ALTO_MAX = 2.4;
+
+/// Distribuição de status que o simulador tenta manter ao longo do tempo
+/// (mesma proporção do seed inicial — PRD seção 3).
+export const ALVO_STATUS = {
+  CONSUMO_ALTO: 9,
+  FALHA_OFFLINE: 5,
+} as const;

@@ -36,6 +36,9 @@ bun run prisma:migrate
 
 # 5. Seed da rede de 248 postes de Itaguari
 bun run db:seed
+
+# 6. (opcional) Histórico dos últimos 30 dias para os endpoints de KPIs/telemetria
+bun run db:backfill
 ```
 
 ## Executar
@@ -43,6 +46,10 @@ bun run db:seed
 ```bash
 bun run start:dev      # http://localhost:3000 (watch mode)
 ```
+
+Ao subir, o **simulador de telemetria** (Fase 2) começa a rodar automaticamente e
+passa a gravar leituras, eventos e transições de status continuamente. Para subir
+a API sem ele, use `SIMULADOR_ENABLED=false`.
 
 ## Scripts úteis
 
@@ -52,6 +59,7 @@ bun run start:dev      # http://localhost:3000 (watch mode)
 | `bun run prisma:migrate` | Cria e aplica migrations em desenvolvimento |
 | `bun run prisma:studio` | Prisma Studio (inspeção visual do banco) |
 | `bun run db:seed` | Popula a rede de postes (idempotente) |
+| `bun run db:backfill` | Gera histórico de telemetria/eventos (`DIAS`, `RESOLUCAO_MIN` configuráveis) |
 | `bun run db:reset` | Recria o banco do zero e roda o seed |
 | `bun run build` | Compila para `dist/` |
 | `bun run lint` | oxlint |
@@ -82,10 +90,26 @@ do centro da cidade. A distribuição inicial de status segue o PRD:
 
 O seed limpa e recria a rede a cada execução.
 
+## Simulador de telemetria (Fase 2)
+
+Worker embutido na API (`src/simulador/`), ligado por padrão. A cada ciclo:
+
+- **Sensores** (5 s): para cada poste, sorteia detecção de veículo (fluxo baixo de
+  madrugada) — sobe ao pico de 100%, agenda o retorno ao piso de 50% e registra os
+  eventos `VEICULO_DETECTADO` / `RETORNO_AO_PISO` com sentido.
+- **Telemetria** (10 s): grava `LeituraTelemetria` com consumo coerente com a
+  luminosidade e o status (postes offline não reportam; em manutenção reportam 0).
+- **Status** (30 s): move postes entre `NORMAL`, `CONSUMO_ALTO` e `FALHA_OFFLINE`
+  mantendo a distribuição perto do alvo do PRD. `MANUTENCAO` só muda manualmente.
+- **Limpeza** (6 h): remove leituras/eventos além de `SIMULADOR_RETENCAO_DIAS`.
+
+O estado vivo dos postes fica em memória e é sincronizado com o banco a cada tick.
+Intervalos e retenção são configuráveis por env (ver `.env.example`).
+
 ## Roadmap
 
 - [x] **Fase 1** — Setup e modelagem de dados
-- [ ] **Fase 2** — Simulador de telemetria IoT
+- [x] **Fase 2** — Simulador de telemetria IoT
 - [ ] **Fase 3** — API REST · Postes
 - [ ] **Fase 4** — API REST · KPIs
 - [ ] **Fase 5** — Tempo real (WebSocket)
