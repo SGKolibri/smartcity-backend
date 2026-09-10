@@ -140,11 +140,37 @@ de hoje — período cheio vs. período cheio. O consumo consolidado vem de
 `AgregadoConsumo` (rollup diário: cron às 00:15 + `db:backfill`); o dia corrente
 é calculado ao vivo da telemetria.
 
+## Tempo real — WebSocket (Fase 5)
+
+Gateway **Socket.IO** no namespace `ws://localhost:3000/tempo-real` (CORS liberado).
+Alimentado pelos eventos do simulador; com `SIMULADOR_ENABLED=false` ainda serve o
+estado inicial e as mudanças manuais de status.
+
+**Cliente → servidor** (com ack `{ ok }`):
+
+| Evento | Payload | Efeito |
+|---|---|---|
+| `assinar:mapa` / `desassinar:mapa` | — | Entra/sai da sala do mapa. Ao entrar, recebe `mapa:estado`. |
+| `assinar:poste` / `desassinar:poste` | `{ posteId }` | Entra/sai da sala de um poste. Ao entrar, recebe `poste:estado`. |
+
+**Servidor → cliente:**
+
+| Evento | Quando | Payload |
+|---|---|---|
+| `mapa:estado` | ao assinar o mapa | `{ postes[], em }` — todos os postes com coordenadas |
+| `postes:atualizados` | a cada tick / mudança | `{ origem: 'sensores'\|'telemetria'\|'status', postes[], em }` — só os que mudaram |
+| `poste:estado` | ao assinar um poste | `{ poste, em }` |
+| `poste:atualizado` | quando aquele poste muda | `{ ...snapshot, origem, em }` |
+| `erro` | payload inválido | `{ evento, mensagem }` |
+
+Os snapshots de delta trazem `posteId`, `codigo`, `status`, `luminosidadeAtual`,
+`consumoInstantaneoKw` e `ultimaLeituraEm`.
+
 ## Roadmap
 
 - [x] **Fase 1** — Setup e modelagem de dados
 - [x] **Fase 2** — Simulador de telemetria IoT
 - [x] **Fase 3** — API REST · Postes
 - [x] **Fase 4** — API REST · KPIs
-- [ ] **Fase 5** — Tempo real (WebSocket)
+- [x] **Fase 5** — Tempo real (WebSocket)
 - [ ] **Fase 6** — Documentação e fechamento da trilha

@@ -10,6 +10,7 @@ import { TelemetriaModule } from './telemetria/telemetria.module';
 import { EventosModule } from './eventos/eventos.module';
 import { AgregadosModule } from './agregados/agregados.module';
 import { SimuladorModule } from './simulador/simulador.module';
+import { TempoRealModule } from './tempo-real/tempo-real.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { SimuladorModule } from './simulador/simulador.module';
     EventosModule,
     AgregadosModule,
     SimuladorModule,
+    TempoRealModule,
   ],
   controllers: [AppController],
   providers: [AppService],
