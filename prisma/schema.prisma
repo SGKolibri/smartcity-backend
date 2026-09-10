@@ -1,0 +1,109 @@
+// Iluminação Pública Inteligente — Prefeitura de Itaguari, GO
+// Modelo de dados derivado da seção 7 do PRD.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Status do poste, derivado da telemetria (PRD seção 6).
+enum StatusPoste {
+  NORMAL // consumo dentro da média esperada do trecho
+  CONSUMO_ALTO // consumo acima da média do trecho nas últimas 24h
+  FALHA_OFFLINE // ausência de telemetria por intervalo definido; abre chamado automático
+  MANUTENCAO // atribuído manualmente pelo técnico
+}
+
+/// Tipo de evento capturado pelo sensor de câmera 360°.
+enum TipoEventoSensor {
+  VEICULO_DETECTADO // luminosidade sobe para o pico (100%)
+  RETORNO_AO_PISO // luminosidade volta ao piso (50%)
+}
+
+/// Sentido do veículo em relação ao poste.
+enum SentidoVeiculo {
+  APROXIMANDO
+  AFASTANDO
+}
+
+/// Janela de agregação de consumo.
+enum PeriodoAgregado {
+  DIA
+  SEMANA
+  MES
+  ANO
+}
+
+/// Poste de iluminação pública da rede simulada de Itaguari.
+model Poste {
+  id                   String      @id @default(uuid())
+  codigo               String      @unique /// ex.: "P-042"
+  endereco             String
+  bairro               String
+  latitude             Float
+  longitude            Float
+  cidade               String      @default("Itaguari")
+  uf                   String      @default("GO")
+  status               StatusPoste @default(NORMAL)
+  luminosidadeAtual    Int         @default(50) /// percentual: piso 50, pico 100
+  consumoInstantaneoKw Float       @default(0)
+  ultimaLeituraEm      DateTime?
+  criadoEm             DateTime    @default(now())
+  atualizadoEm         DateTime    @updatedAt
+
+  leituras  LeituraTelemetria[]
+  eventos   EventoSensor[]
+  agregados AgregadoConsumo[]
+
+  @@index([status])
+  @@index([bairro])
+  @@map("postes")
+}
+
+/// Leitura de telemetria enviada por um poste (ingestão IoT / MQTT).
+model LeituraTelemetria {
+  id              String   @id @default(uuid())
+  posteId         String
+  poste           Poste    @relation(fields: [posteId], references: [id], onDelete: Cascade)
+  timestamp       DateTime @default(now())
+  consumoKw       Float
+  luminosidadePct Int
+
+  @@index([posteId, timestamp])
+  @@map("leituras_telemetria")
+}
+
+/// Evento do sensor 360° (log exibido no detalhe do poste).
+model EventoSensor {
+  id                     String           @id @default(uuid())
+  posteId                String
+  poste                  Poste            @relation(fields: [posteId], references: [id], onDelete: Cascade)
+  timestamp              DateTime         @default(now())
+  tipo                   TipoEventoSensor
+  sentido                SentidoVeiculo?
+  luminosidadeResultante Int
+
+  @@index([posteId, timestamp])
+  @@map("eventos_sensor")
+}
+
+/// Consumo agregado por período. posteId nulo = agregado geral da rede.
+model AgregadoConsumo {
+  id              String          @id @default(uuid())
+  posteId         String?
+  poste           Poste?          @relation(fields: [posteId], references: [id], onDelete: Cascade)
+  periodo         PeriodoAgregado
+  periodoInicio   DateTime
+  periodoFim      DateTime
+  consumoTotalKwh Float
+  custoTotalReais Float
+  calculadoEm     DateTime        @default(now())
+
+  @@unique([posteId, periodo, periodoInicio])
+  @@index([periodo, periodoInicio])
+  @@map("agregados_consumo")
+}

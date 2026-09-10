@@ -1,0 +1,96 @@
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { Prisma, StatusPoste } from '@prisma/client';
+import { LUMINOSIDADE_PISO_PCT } from '../common/constants';
+import { PrismaService } from '../prisma/prisma.service';
+import { ListarPostesQuery } from './dto/listar-postes.query';
+import { StatusManual } from './dto/atualizar-status.dto';
+import {
+  EVENTO_POSTE_STATUS_ALTERADO,
+  PosteStatusAlteradoEvent,
+} from './postes.events';
+
+/// Campos enviados na listagem do mapa (PRD 5.1 · marcadores + bottom sheet).
+const RESUMO_POSTE = {
+  id: true,
+  codigo: true,
+  endereco: true,
+  bairro: true,
+  latitude: true,
+  longitude: true,
+  status: true,
+  luminosidadeAtual: true,
+  consumoInstantaneoKw: true,
+  ultimaLeituraEm: true,
+} satisfies Prisma.PosteSelect;
+
+@Injectable()
+export class PostesService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly eventEmitter: EventEmitter2,
+  ) {}
+
+  /** Lista para o mapa, com filtro por status e busca por rua/bairro. */
+  async listar(query: ListarPostesQuery) {
+    const where: Prisma.PosteWhereInput = {};
+    if (query.status) where.status = query.status;
+    if (query.busca) {
+      where.OR = [
+        { endereco: { contains: query.busca, mode: 'insensitive' } },
+        { bairro: { contains: query.busca, mode: 'insensitive' } },
+      ];
+    }
+
+    const postes = await this.prisma.poste.findMany({
+      where,
+      orderBy: { codigo: 'asc' },
+      select: RESUMO_POSTE,
+    });
+
+    return { total: postes.length, postes };
+  }
+
+  /** Detalhe completo do poste. Lança 404 se não existir. */
+  async buscarPorId(id: string) {
+    const poste = await this.prisma.poste.findUnique({ where: { id } });
+    if (!poste) throw new NotFoundException(`Poste ${id} não encontrado.`);
+    return {
+      ...poste,
+      chamadoAberto: poste.status === StatusPoste.FALHA_OFFLINE,
+    };
+  }
+
+  /** Valida a existência do poste sem carregar a linha inteira. */
+  async garantirExiste(id: string): Promise<void> {
+    const existe = await this.prisma.poste.count({ where: { id } });
+    if (!existe) throw new NotFoundException(`Poste ${id} não encontrado.`);
+  }
+
+  /**
+   * Atribuição manual de status pelo técnico: colocar em manutenção ou
+   * devolver à operação normal (PRD 5.2 · "Agendar manutenção").
+   */
+  async atualizarStatus(id: string, status: StatusManual) {
+    await this.garantirExiste(id);
+
+    // Ajusta os campos "atuais" para um estado coerente já na resposta, sem
+    // depender do próximo tick do simulador (que pode estar desligado).
+    const data: Prisma.PosteUpdateInput = { status };
+    if (status === StatusPoste.MANUTENCAO) {
+      data.luminosidadeAtual = 0;
+      data.consumoInstantaneoKw = 0;
+    } else {
+      data.luminosidadeAtual = LUMINOSIDADE_PISO_PCT;
+    }
+
+    const poste = await this.prisma.poste.update({ where: { id }, data });
+
+    this.eventEmitter.emit(EVENTO_POSTE_STATUS_ALTERADO, {
+      posteId: id,
+      status,
+    } satisfies PosteStatusAlteradoEvent);
+
+    return poste;
+  }
+}
