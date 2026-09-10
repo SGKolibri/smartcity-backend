@@ -17,5 +17,44 @@ services:
       timeout: 5s
       retries: 10
 
+  app:
+    build: .
+    container_name: smartcity-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # Dentro da rede do compose o host do banco é `postgres`, não `localhost`
+      # — por isso o DATABASE_URL do .env não serve aqui e é sobrescrito.
+      DATABASE_URL: 'postgresql://smartcity:smartcity@postgres:5432/iluminacao_publica?schema=public'
+      PORT: 3000
+      # auto = seed + backfill só na primeira subida (banco vazio).
+      DB_BOOTSTRAP: ${DB_BOOTSTRAP:-auto}
+      # Tamanho do histórico gerado no bootstrap (dias de telemetria bruta e de
+      # agregados diários). Reduza para uma primeira subida mais rápida.
+      DIAS_RAW: ${DIAS_RAW:-30}
+      DIAS_AGREGADO: ${DIAS_AGREGADO:-740}
+      SIMULADOR_ENABLED: ${SIMULADOR_ENABLED:-true}
+      SIMULADOR_INTERVALO_SENSORES_MS: ${SIMULADOR_INTERVALO_SENSORES_MS:-5000}
+      SIMULADOR_INTERVALO_TELEMETRIA_MS: ${SIMULADOR_INTERVALO_TELEMETRIA_MS:-10000}
+      SIMULADOR_INTERVALO_STATUS_MS: ${SIMULADOR_INTERVALO_STATUS_MS:-30000}
+      SIMULADOR_INTERVALO_LIMPEZA_MS: ${SIMULADOR_INTERVALO_LIMPEZA_MS:-21600000}
+      SIMULADOR_RETENCAO_DIAS: ${SIMULADOR_RETENCAO_DIAS:-40}
+    ports:
+      - '${PORT:-3000}:3000'
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'bun',
+          '-e',
+          'process.exit((await fetch("http://127.0.0.1:3000/")).ok ? 0 : 1)',
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 300s
+
 volumes:
   smartcity-pgdata:
